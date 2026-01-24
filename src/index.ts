@@ -22,17 +22,23 @@ app.use(cors());
 app.use(bodyParser.json());
 
 app.post("/save-level-time", async (req, res) => {
-  const { playerName, levelName, timeElapsed, checkpointTime, reachedCheckpoint } = req.body;
+  const {
+    player_name,
+    level_name,
+    time_elapsed,
+    checkpoint_time,
+    reached_checkpoint
+    } = req.body;
 
   try {
     const record = await prisma.level_times.create({
-      data: {
-        player_name: playerName,
-        level_name: levelName,
-        time_elapsed: timeElapsed,
-        checkpoint_time: checkpointTime,
-        reached_checkpoint: reachedCheckpoint,
-      },
+    data: {
+        player_name,
+        level_name,
+        time_elapsed,
+        checkpoint_time,
+        reached_checkpoint,
+    },
     });
     res.json({ success: true, record });
   } catch (error: unknown) {
