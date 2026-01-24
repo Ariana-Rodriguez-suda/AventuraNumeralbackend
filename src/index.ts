@@ -46,6 +46,19 @@ app.post("/save-level-time", async (req, res) => {
   }
 });
 
+app.get("/", async (_req, res) => {
+  const rows = await prisma.level_times.findMany({
+    orderBy: { created_at: "desc" },
+    take: 10
+  })
+
+  res.json({
+    status: "ok",
+    message: "Aventura Numeral backend is live 🚀",
+    rows
+  })
+})
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
