@@ -3,3 +3,6 @@ node_modules
 .env
 
 /generated/prisma
+
+# Firebase service account key (sensitive!)
+firebase-service-account.json

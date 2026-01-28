@@ -23,48 +23,249 @@ app.use(bodyParser.json());
 
 app.post("/save-level-time", async (req, res) => {
   const {
-    player_name,
+    student_name,
+    class_name,
     level_name,
     time_elapsed,
     checkpoint_time,
     reached_checkpoint
-    } = req.body;
+  } = req.body;
 
   try {
-    const record = await prisma.level_times.create({
-    data: {
-        player_name,
-        level_name,
-        time_elapsed,
-        checkpoint_time,
-        reached_checkpoint,
-    },
+    const className = class_name || "Sexto Basica A";
+    let classRecord = await prisma.class.findFirst({
+      where: { class_name: className }
     });
-    res.json({ success: true, record });
+
+    if (!classRecord) {
+      return res.status(404).json({ 
+        error: `Clase "${className}" no encontrada. Por favor, crea la clase primero.` 
+      });
+    }
+
+    let student = await prisma.student.findFirst({
+      where: {
+        class_id: classRecord.id,
+        student_name: student_name
+      }
+    });
+
+    if (!student) {
+      student = await prisma.student.create({
+        data: {
+          class_id: classRecord.id,
+          student_name: student_name
+        }
+      });
+    }
+
+    const attempt = await prisma.levelAttempt.create({
+      data: {
+        student_id: student.id,
+        level_name: level_name || "level-1",
+        time_elapsed: time_elapsed,
+        checkpoint_time: checkpoint_time,
+        reached_checkpoint: reached_checkpoint
+      }
+    });
+
+    res.json({ 
+      success: true, 
+      attempt,
+      student: {
+        id: student.id,
+        name: student.student_name
+      }
+    });
   } catch (error: unknown) {
     if (error instanceof Error) {
       console.error(error.message);
       res.status(500).json({ error: error.message });
     } else {
       console.error(error);
-      res.status(500).json({ error: "Unknown error" });
+      res.status(500).json({ error: "Error desconocido" });
     }
   }
 });
 
 app.get("/", async (_req, res) => {
-  const rows = await prisma.level_times.findMany({
+  const recentAttempts = await prisma.levelAttempt.findMany({
     orderBy: { created_at: "desc" },
-    take: 10
-  })
+    take: 10,
+    include: {
+      student: {
+        include: {
+          class: true
+        }
+      }
+    }
+  });
 
   res.json({
     status: "ok",
-    message: "Aventura Numeral backend is live 🚀",
-    rows
-  })
-})
+    message: "Aventura Numeral backend esta en vivo 🚀",
+    recentAttempts
+  });
+});
+
+app.get("/teacher/by-email/:email", async (req, res) => {
+  try {
+    const email = req.params.email;
+    const teacher = await prisma.teacher.findUnique({
+      where: { email },
+      include: {
+        classes: {
+          include: {
+            _count: {
+              select: { students: true }
+            }
+          }
+        }
+      }
+    });
+
+    if (!teacher) {
+      return res.status(404).json({ error: "Profesor no encontrado" });
+    }
+
+    res.json({ teacher });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      res.status(500).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: "Error desconocido" });
+    }
+  }
+});
+
+app.get("/teachers/:teacherId/classes", async (req, res) => {
+  try {
+    const teacherId = parseInt(req.params.teacherId);
+    const classes = await prisma.class.findMany({
+      where: { teacher_id: teacherId },
+      include: {
+        _count: {
+          select: { students: true }
+        }
+      }
+    });
+    res.json({ classes });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      res.status(500).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: "Error desconocido" });
+    }
+  }
+});
+
+app.get("/classes/:classId/students", async (req, res) => {
+  try {
+    const classId = parseInt(req.params.classId);
+    
+    const students = await prisma.student.findMany({
+      where: { class_id: classId },
+      include: {
+        _count: {
+          select: { attempts: true }
+        }
+      },
+      orderBy: { student_name: "asc" }
+    });
+    res.json({ students });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      res.status(500).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: "Error desconocido" });
+    }
+  }
+});
+
+app.get("/students/:studentId/attempts", async (req, res) => {
+  try {
+    const studentId = parseInt(req.params.studentId);
+    
+    const student = await prisma.student.findUnique({
+      where: { id: studentId },
+      include: { class: true }
+    });
+    
+    const attempts = await prisma.levelAttempt.findMany({
+      where: { student_id: studentId },
+      orderBy: { created_at: "desc" }
+    });
+
+    res.json({ student, attempts });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      res.status(500).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: "Error desconocido" });
+    }
+  }
+});
+
+app.patch("/students/:studentId/label", async (req, res) => {
+  try {
+    const studentId = parseInt(req.params.studentId);
+    const { label } = req.body;
+    
+    const student = await prisma.student.update({
+      where: { id: studentId },
+      data: { label }
+    });
+
+    res.json({ success: true, student });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      res.status(500).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: "Error desconocido" });
+    }
+  }
+});
+
+app.get("/classes", async (_req, res) => {
+  try {
+    const classes = await prisma.class.findMany({
+      select: {
+        id: true,
+        class_name: true
+      },
+      orderBy: { class_name: "asc" }
+    });
+    res.json({ classes });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      res.status(500).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: "Error desconocido" });
+    }
+  }
+});
+
+app.get("/classes/:classId/student-names", async (req, res) => {
+  try {
+    const classId = parseInt(req.params.classId);
+    const students = await prisma.student.findMany({
+      where: { class_id: classId },
+      select: {
+        id: true,
+        student_name: true
+      },
+      orderBy: { student_name: "asc" }
+    });
+    res.json({ students });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      res.status(500).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: "Error desconocido" });
+    }
+  }
+});
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Servidor corriendo en el puerto ${PORT}`);
 });
