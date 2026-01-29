@@ -108,6 +108,53 @@ app.get("/", async (_req, res) => {
   });
 });
 
+// Auto-crear o obtener maestro por email
+app.post("/teachers/auto-create", async (req, res) => {
+  try {
+    const { email, name } = req.body;
+
+    if (!email || !name) {
+      return res.status(400).json({ error: "Email y nombre son requeridos" });
+    }
+
+    let teacher = await prisma.teacher.findUnique({
+      where: { email },
+      include: {
+        classes: {
+          include: {
+            _count: {
+              select: { students: true }
+            }
+          }
+        }
+      }
+    });
+
+    if (!teacher) {
+      teacher = await prisma.teacher.create({
+        data: { email, name },
+        include: {
+          classes: {
+            include: {
+              _count: {
+                select: { students: true }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    res.json({ teacher, created: !teacher });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      res.status(500).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: "Error desconocido" });
+    }
+  }
+});
+
 app.get("/teacher/by-email/:email", async (req, res) => {
   try {
     const email = req.params.email;
@@ -150,6 +197,38 @@ app.get("/teachers/:teacherId/classes", async (req, res) => {
       }
     });
     res.json({ classes });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      res.status(500).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: "Error desconocido" });
+    }
+  }
+});
+
+// Crear nueva clase
+app.post("/classes", async (req, res) => {
+  try {
+    const { teacher_id, class_name, access_code } = req.body;
+
+    if (!teacher_id || !class_name) {
+      return res.status(400).json({ error: "teacher_id y class_name son requeridos" });
+    }
+
+    const newClass = await prisma.class.create({
+      data: {
+        teacher_id: parseInt(teacher_id),
+        class_name,
+        access_code: access_code || null
+      },
+      include: {
+        _count: {
+          select: { students: true }
+        }
+      }
+    });
+
+    res.json({ success: true, class: newClass });
   } catch (error: unknown) {
     if (error instanceof Error) {
       res.status(500).json({ error: error.message });
