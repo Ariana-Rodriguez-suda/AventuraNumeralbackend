@@ -361,7 +361,7 @@ app.get("/students/:studentId", async (req, res) => {
       where: { id: studentId },
       include: {
         class: true,
-        inventory: {
+        items: {
           include: {
             item: true
           }
@@ -401,12 +401,12 @@ app.post("/students/:studentId/buy-item", async (req, res) => {
       return res.status(404).json({ error: "Estudiante o item no encontrado" });
     }
     
-    if (student.coins < item.price) {
+    if (student.coins < item.cost) {
       return res.status(400).json({ error: "Monedas insuficientes" });
     }
     
     // Verificar si ya tiene el item
-    const existingItem = await prisma.inventory.findFirst({
+    const existingItem = await prisma.studentItem.findFirst({
       where: {
         student_id: studentId,
         item_id: itemId
@@ -418,18 +418,17 @@ app.post("/students/:studentId/buy-item", async (req, res) => {
     }
     
     // Comprar item
-    await prisma.inventory.create({
+    await prisma.studentItem.create({
       data: {
         student_id: studentId,
-        item_id: itemId,
-        quantity: 1
+        item_id: itemId
       }
     });
     
     // Restar monedas
     const updatedStudent = await prisma.student.update({
       where: { id: studentId },
-      data: { coins: student.coins - item.price }
+      data: { coins: student.coins - item.cost }
     });
     
     res.json({ success: true, student: updatedStudent });
@@ -448,24 +447,23 @@ app.post("/students/:studentId/use-item", async (req, res) => {
     const studentId = parseInt(req.params.studentId);
     const { itemId } = req.body;
     
-    const inventory = await prisma.inventory.findFirst({
+    const inventory = await prisma.studentItem.findFirst({
       where: {
         student_id: studentId,
         item_id: itemId
       }
     });
     
-    if (!inventory || inventory.quantity <= 0) {
+    if (!inventory) {
       return res.status(400).json({ error: "No tienes este item" });
     }
     
-    // Reducir cantidad
-    const updated = await prisma.inventory.update({
-      where: { id: inventory.id },
-      data: { quantity: inventory.quantity - 1 }
+    // Eliminar item usado
+    await prisma.studentItem.delete({
+      where: { id: inventory.id }
     });
     
-    res.json({ success: true, inventory: updated });
+    res.json({ success: true });
   } catch (error: unknown) {
     if (error instanceof Error) {
       res.status(500).json({ error: error.message });
@@ -479,7 +477,7 @@ app.post("/students/:studentId/use-item", async (req, res) => {
 app.get("/items", async (_req, res) => {
   try {
     const items = await prisma.item.findMany({
-      orderBy: { price: "asc" }
+      orderBy: { cost: "asc" }
     });
     res.json({ items });
   } catch (error: unknown) {
