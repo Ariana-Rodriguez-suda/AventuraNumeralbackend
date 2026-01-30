@@ -218,6 +218,32 @@ app.post("/classes", async (req, res) => {
         }
     }
 });
+// Crear estudiante
+app.post("/classes/:classId/students", async (req, res) => {
+    try {
+        const classId = parseInt(req.params.classId);
+        const { student_name, avatar } = req.body;
+        if (!student_name) {
+            return res.status(400).json({ error: "student_name es requerido" });
+        }
+        const newStudent = await prisma.student.create({
+            data: {
+                class_id: classId,
+                student_name,
+                avatar: avatar || "avatargirl1"
+            }
+        });
+        res.json({ success: true, student: newStudent });
+    }
+    catch (error) {
+        if (error instanceof Error) {
+            res.status(500).json({ error: error.message });
+        }
+        else {
+            res.status(500).json({ error: "Error desconocido" });
+        }
+    }
+});
 app.get("/classes/:classId/students", async (req, res) => {
     try {
         const classId = parseInt(req.params.classId);
