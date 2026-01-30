@@ -305,6 +305,192 @@ app.patch("/students/:studentId/label", async (req, res) => {
   }
 });
 
+// Actualizar avatar del estudiante
+app.patch("/students/:studentId/avatar", async (req, res) => {
+  try {
+    const studentId = parseInt(req.params.studentId);
+    const { avatar } = req.body;
+    
+    const student = await prisma.student.update({
+      where: { id: studentId },
+      data: { avatar }
+    });
+
+    res.json({ success: true, student });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      res.status(500).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: "Error desconocido" });
+    }
+  }
+});
+
+// Actualizar recursos (monedas, vidas, estrellas)
+app.patch("/students/:studentId/resources", async (req, res) => {
+  try {
+    const studentId = parseInt(req.params.studentId);
+    const { coins, lives, stars } = req.body;
+    
+    const updateData: any = {};
+    if (coins !== undefined) updateData.coins = coins;
+    if (lives !== undefined) updateData.lives = lives;
+    if (stars !== undefined) updateData.stars = stars;
+    
+    const student = await prisma.student.update({
+      where: { id: studentId },
+      data: updateData
+    });
+
+    res.json({ success: true, student });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      res.status(500).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: "Error desconocido" });
+    }
+  }
+});
+
+// Obtener estudiante por ID con todos sus datos
+app.get("/students/:studentId", async (req, res) => {
+  try {
+    const studentId = parseInt(req.params.studentId);
+    
+    const student = await prisma.student.findUnique({
+      where: { id: studentId },
+      include: {
+        class: true,
+        inventory: {
+          include: {
+            item: true
+          }
+        }
+      }
+    });
+
+    if (!student) {
+      return res.status(404).json({ error: "Estudiante no encontrado" });
+    }
+
+    res.json({ student });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      res.status(500).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: "Error desconocido" });
+    }
+  }
+});
+
+// Comprar item
+app.post("/students/:studentId/buy-item", async (req, res) => {
+  try {
+    const studentId = parseInt(req.params.studentId);
+    const { itemId } = req.body;
+    
+    const student = await prisma.student.findUnique({
+      where: { id: studentId }
+    });
+    
+    const item = await prisma.item.findUnique({
+      where: { id: itemId }
+    });
+    
+    if (!student || !item) {
+      return res.status(404).json({ error: "Estudiante o item no encontrado" });
+    }
+    
+    if (student.coins < item.price) {
+      return res.status(400).json({ error: "Monedas insuficientes" });
+    }
+    
+    // Verificar si ya tiene el item
+    const existingItem = await prisma.inventory.findFirst({
+      where: {
+        student_id: studentId,
+        item_id: itemId
+      }
+    });
+    
+    if (existingItem) {
+      return res.status(400).json({ error: "Ya tienes este item" });
+    }
+    
+    // Comprar item
+    await prisma.inventory.create({
+      data: {
+        student_id: studentId,
+        item_id: itemId,
+        quantity: 1
+      }
+    });
+    
+    // Restar monedas
+    const updatedStudent = await prisma.student.update({
+      where: { id: studentId },
+      data: { coins: student.coins - item.price }
+    });
+    
+    res.json({ success: true, student: updatedStudent });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      res.status(500).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: "Error desconocido" });
+    }
+  }
+});
+
+// Usar item
+app.post("/students/:studentId/use-item", async (req, res) => {
+  try {
+    const studentId = parseInt(req.params.studentId);
+    const { itemId } = req.body;
+    
+    const inventory = await prisma.inventory.findFirst({
+      where: {
+        student_id: studentId,
+        item_id: itemId
+      }
+    });
+    
+    if (!inventory || inventory.quantity <= 0) {
+      return res.status(400).json({ error: "No tienes este item" });
+    }
+    
+    // Reducir cantidad
+    const updated = await prisma.inventory.update({
+      where: { id: inventory.id },
+      data: { quantity: inventory.quantity - 1 }
+    });
+    
+    res.json({ success: true, inventory: updated });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      res.status(500).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: "Error desconocido" });
+    }
+  }
+});
+
+// Listar todos los items disponibles
+app.get("/items", async (_req, res) => {
+  try {
+    const items = await prisma.item.findMany({
+      orderBy: { price: "asc" }
+    });
+    res.json({ items });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      res.status(500).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: "Error desconocido" });
+    }
+  }
+});
+
 app.get("/classes", async (_req, res) => {
   try {
     const classes = await prisma.class.findMany({

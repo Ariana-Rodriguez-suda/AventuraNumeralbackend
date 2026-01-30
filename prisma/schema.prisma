@@ -33,12 +33,42 @@ model Student {
   class_id     Int
   student_name String
   label        String?
+  avatar       String?        @default("avatargirl1")
+  coins        Int            @default(0)
+  lives        Int            @default(3)
+  stars        Int            @default(3)
+  current_item Int?
   created_at   DateTime       @default(now()) @db.Timestamptz(6)
   class        Class          @relation(fields: [class_id], references: [id], onDelete: Cascade)
   attempts     LevelAttempt[]
+  items        StudentItem[]
 
   @@unique([class_id, student_name])
   @@map("students")
+}
+
+model Item {
+  id          Int           @id @default(autoincrement())
+  name        String        @unique
+  description String
+  cost        Int
+  effect_type String
+  created_at  DateTime      @default(now()) @db.Timestamptz(6)
+  students    StudentItem[]
+
+  @@map("items")
+}
+
+model StudentItem {
+  id           Int      @id @default(autoincrement())
+  student_id   Int
+  item_id      Int
+  purchased_at DateTime @default(now()) @db.Timestamptz(6)
+  student      Student  @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  item         Item     @relation(fields: [item_id], references: [id], onDelete: Cascade)
+
+  @@unique([student_id, item_id])
+  @@map("student_items")
 }
 
 model LevelAttempt {
@@ -48,6 +78,9 @@ model LevelAttempt {
   time_elapsed       Float    @db.Real
   checkpoint_time    Float?   @db.Real
   reached_checkpoint Boolean
+  coins_collected    Int      @default(0)
+  stars_earned       Int      @default(0)
+  success            Boolean  @default(false)
   created_at         DateTime @default(now()) @db.Timestamptz(6)
   student            Student  @relation(fields: [student_id], references: [id], onDelete: Cascade)
 
