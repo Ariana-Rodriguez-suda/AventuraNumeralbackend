@@ -515,7 +515,8 @@ app.get("/classes/:classId/student-names", async (req, res) => {
       where: { class_id: classId },
       select: {
         id: true,
-        student_name: true
+        student_name: true,
+        avatar: true
       },
       orderBy: { student_name: "asc" }
     });
