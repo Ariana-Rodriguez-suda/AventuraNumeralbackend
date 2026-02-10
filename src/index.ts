@@ -252,7 +252,7 @@ app.post("/classes/:classId/students", async (req, res) => {
       data: {
         class_id: classId,
         student_name,
-        avatar: avatar || "avatargirl1"
+        avatar: avatar || null  // Allow null avatar - will be set later in APK
       }
     });
 
